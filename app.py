@@ -40,8 +40,8 @@ def route():
         return json.dumps({'error': 'Parameters are required for the date of departure: year, month, day'})
     date = datetime(year, month, day, hour, minute)
 
-    near_airports = searcher.search_route((latitude_from, longitude_from), (latitude_to, longitude_to), date)
-    return json.dumps(near_airports)
+    route = searcher.search_route((latitude_from, longitude_from), (latitude_to, longitude_to), date)
+    return json.dumps(route)
 
 
 @app.route('/flight_data', methods=['POST'])
