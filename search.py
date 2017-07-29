@@ -50,30 +50,36 @@ class AirRouteSearcher:
         return self.airports.iloc[airports_indeces[0]]
 
     def search_route(self, coord_from: Tuple[float, float], coord_to: Tuple[float, float], date: datetime) -> dict:
+
         near_airports_from = self.get_near_airports(coord_from)
         near_airports_to = self.get_near_airports(coord_to)
 
         comming_flightes = self.flight_data[(self.flight_data.dep_date - date <= pd.Timedelta(days=2))
                                             & (self.flight_data.dep_date - date >= pd.Timedelta(minutes=0))]
 
-        all_flights = pd.DataFrame()
+        all_flights = pd.DataFrame({'dep_date': [], 'arr_date': [], 'Origin': [], 'Dest': []})
 
         last_flights = comming_flightes[comming_flightes.Origin.isin(near_airports_from.iata_code)
                                         & (comming_flightes.dep_date - date <= pd.Timedelta(days=1))
                                         & (comming_flightes.dep_date - date >= pd.Timedelta(minutes=0))]
+        last_flights = last_flights.loc[last_flights.groupby(['Origin', 'Dest']).dep_date.idxmin()]
         last_flights['previous'] = None
 
+        origin_cities = set(last_flights.Origin.unique())
         while last_flights.shape[0] and not last_flights.Dest.isin(near_airports_to.iata_code).any():
             new_flights = []
             for flight in range(last_flights.shape[0]):
                 flights = comming_flightes[(comming_flightes.Origin == last_flights.iloc[flight].Dest)
                             & (comming_flightes.dep_date - last_flights.iloc[flight].arr_date <= pd.Timedelta(days=1))
-                            & (comming_flightes.dep_date - last_flights.iloc[flight].arr_date >= pd.Timedelta(hours=1))]
+                            & (comming_flightes.dep_date - last_flights.iloc[flight].arr_date >= pd.Timedelta(hours=1))
+                            & ~(comming_flightes.Dest.isin(origin_cities))]
+                flights = flights.loc[flights.groupby(['Origin', 'Dest']).dep_date.idxmin()]
                 flights['previous'] = all_flights.shape[0] + flight
                 new_flights.append(flights)
 
             all_flights = pd.concat((all_flights, last_flights))
             last_flights = pd.concat(new_flights)
+            origin_cities |= set(last_flights.Origin.unique())
 
         if last_flights.shape[0] == 0:
             return {'route': 'Not found'}
